@@ -1,0 +1,186 @@
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import matplotlib.pyplot as plt #to plot charts
+import seaborn as sns #used for data visualization
+import warnings #avoid warning flash
+warnings.filterwarnings('ignore')
+
+df=pd.read_csv("diabetes.csv")
+
+df.head(n=10)
+
+df.shape
+
+df.columns
+
+df.dtypes
+
+df.info()
+
+df.describe()
+
+df=df.drop_duplicates()
+
+df.isnull().sum()
+
+print(df[df['BloodPressure']==0].shape[0])
+print(df[df['Glucose']==0].shape[0])
+print(df[df['SkinThickness']==0].shape[0])
+print(df[df['Insulin']==0].shape[0])
+print(df[df['BMI']==0].shape[0])
+
+df['Glucose']=df['Glucose'].replace(0,df['Glucose'].mean())#normal distribution
+df['BloodPressure']=df['BloodPressure'].replace(0,df['BloodPressure'].mean())#normal distribution
+df['SkinThickness']=df['SkinThickness'].replace(0,df['SkinThickness'].median())#skewed distribution
+df['Insulin']=df['Insulin'].replace(0,df['Insulin'].median())#skewed distribution
+df['BMI']=df['BMI'].replace(0,df['BMI'].median())#skewed distribution
+
+sns.countplot(x='Outcome', data=df)
+
+#histogram for each  feature
+df.hist(bins=10,figsize=(10,10))
+plt.show()
+
+plt.figure(figsize=(16,12))
+sns.set_style(style='whitegrid')
+plt.subplot(3,3,1)
+sns.boxplot(x='Glucose',data=df)
+plt.subplot(3,3,2)
+sns.boxplot(x='BloodPressure',data=df)
+plt.subplot(3,3,3)
+sns.boxplot(x='Insulin',data=df)
+plt.subplot(3,3,4)
+sns.boxplot(x='BMI',data=df)
+plt.subplot(3,3,5)
+sns.boxplot(x='Age',data=df)
+plt.subplot(3,3,6)
+sns.boxplot(x='SkinThickness',data=df)
+plt.subplot(3,3,7)
+sns.boxplot(x='Pregnancies',data=df)
+plt.subplot(3,3,8)
+sns.boxplot(x='DiabetesPedigreeFunction',data=df)
+
+from pandas.plotting import scatter_matrix
+scatter_matrix(df,figsize=(20,20));
+
+corrmat=df.corr()
+sns.heatmap(corrmat, annot=True)
+
+df_selected=df.drop(['BloodPressure','Insulin','DiabetesPedigreeFunction'],axis='columns')
+
+from sklearn.preprocessing import QuantileTransformer
+x=df_selected
+quantile  = QuantileTransformer()
+X = quantile.fit_transform(x)
+df_new=quantile.transform(X)
+df_new=pd.DataFrame(X)
+df_new.columns =['Pregnancies', 'Glucose','SkinThickness','BMI','Age','Outcome']
+df_new.head()
+
+plt.figure(figsize=(16,12))
+sns.set_style(style='whitegrid')
+plt.subplot(3,3,1)
+sns.boxplot(x=df_new['Glucose'],data=df_new)
+plt.subplot(3,3,2)
+sns.boxplot(x=df_new['BMI'],data=df_new)
+plt.subplot(3,3,3)
+sns.boxplot(x=df_new['Pregnancies'],data=df_new)
+plt.subplot(3,3,4)
+sns.boxplot(x=df_new['Age'],data=df_new)
+plt.subplot(3,3,5)
+sns.boxplot(x=df_new['SkinThickness'],data=df_new)
+
+target_name='Outcome'
+y= df_new[target_name]
+X=df_new.drop(target_name,axis=1)
+
+X.head()
+
+y.head() 
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test= train_test_split(X,y,test_size=0.2,random_state=0)
+
+X_train.shape,y_train.shape
+
+X_test.shape,y_test.shape
+
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import GridSearchCV
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report,confusion_matrix
+from sklearn.metrics import f1_score, precision_score, recall_score
+
+model = SVC()
+kernel = ['poly', 'rbf', 'sigmoid']
+C = [50, 10, 1.0, 0.1, 0.01]
+gamma = ['scale']
+
+# define grid search
+grid = dict(kernel=kernel,C=C,gamma=gamma)
+cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state = 1)
+grid_search = GridSearchCV(estimator=model, param_grid=grid, n_jobs=-1, cv=cv, scoring='f1',error_score=0)
+
+grid_result = grid_search.fit(X, y)
+
+svm_pred=grid_result.predict(X_test)
+
+print("Classification Report est :\n",classification_report(y_test,svm_pred))
+print("\n F1:\n",f1_score(y_test,knn_pred))
+print("\n Precision score est :\n",precision_score(y_test,knn_pred))
+print("\n Recall score est :\n",recall_score(y_test,knn_pred))
+print("\n Confusion Matrix:\n")
+sns.heatmap(confusion_matrix(y_test,svm_pred))
+
+import os
+os.makedirs('./saved_models', exist_ok=True)
+
+import pickle
+pickle.dump(model, open('./saved_models/model_01.pkl', 'wb'))
+
+# Ajuster (fit) le modèle sur les données d'entraînement
+model.fit(X_train, y_train)
+
+# Sauvegarder le modèle
+import joblib
+joblib.dump(model, "saved_models/model_01.pkl")
+
+
+
+
+
+####################################################### code streamlit
+
+import streamlit as st
+import joblib
+import numpy as np
+
+# Charger le modèle
+model = joblib.load("saved_models/model_01.pkl")
+
+# Fonction de prédiction
+def predict_diabetes(pregnancies, glucose, blood_pressure, bmi, age):
+    prediction = model.predict([[pregnancies, glucose, blood_pressure, bmi, age]])
+    return prediction[0]
+
+# Titre de l'application
+st.title('Prédiction de diabète')
+
+# Section pour saisir les informations du patient
+st.sidebar.header('Informations sur le patient')
+pregnancies = st.sidebar.slider('Grossesses', 0, 20, 1)
+glucose = st.sidebar.slider('Glucose', 0, 200, 100)
+blood_pressure = st.sidebar.slider('Pression artérielle', 0, 150, 70)
+#skin_thickness = st.sidebar.slider('Épaisseur de la peau', 0, 100, 20)
+#insulin = st.sidebar.slider('Insuline', 0, 300, 100)
+bmi = st.sidebar.slider('Indice de masse corporelle (BMI)', 0.0, 70.0, 25.0)
+age = st.sidebar.slider('Âge', 20, 90, 30)
+
+# Bouton pour faire la prédiction
+if st.sidebar.button('Prédire'):
+    result = predict_diabetes(pregnancies, glucose, blood_pressure, bmi, age)
+    if result == 0:
+        st.write('Le patient n\'est pas diabétique.')
+    else:
+        st.write('Le patient est diabétique.')
+
